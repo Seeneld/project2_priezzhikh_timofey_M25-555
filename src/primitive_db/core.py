@@ -1,4 +1,6 @@
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional, Union, Any
+from src.primitive_db.utils import load_table_data
+from prettytable import PrettyTable
 
 
 SUPPORTED_TYPES = {"int", "str", "bool"}
@@ -61,3 +63,185 @@ def list_tables(metadata: Dict[str, List[str]]):
     else:
         for table in metadata:
             print(f"- {table}")
+
+"""
+Преобразование строки в значение нужного типа.
+"""
+def cast_value(value_str: str, target_type: str) -> Any:
+    value_str = value_str.strip()
+    if target_type == "int":
+        return int(value_str)
+    elif target_type == "bool":
+        if value_str.lower() in ("true", "1"):
+            return True
+        elif value_str.lower() in ("false", "0"):
+            return False
+        else:
+            raise ValueError(f"Некорректное булево значение: {value_str}")
+    elif target_type == "str":
+            return value_str
+    else:
+        raise ValueError(f"Неизвестный тип: {target_type}")
+
+"""
+Валидация и приведение значения к нужному типу
+"""
+def validate_and_cast_values(schema: List[str], values: List[str]) -> Dict[str, Any]:
+    data_columns = schema[1:] 
+    if len(values) != len(data_columns):
+        raise ValueError(
+            f"Ожидалось {len(data_columns)} значений, получено {len(values)}."
+        )
+
+    record = {}
+    for spec, val_str in zip(data_columns, values):
+        col_name, col_type = spec.split(":", 1)
+        record[col_name] = cast_value(val_str, col_type)
+    return record
+
+"""
+Добавление записи в таблицу
+"""
+def insert(metadata: Dict[str, List[str]], table_name: str, values: List[str]) -> Optional[List[Dict[str, Any]]]:
+    if table_name not in metadata:
+        print(f'Ошибка: Таблица "{table_name}" не существует.')
+        return None
+
+    schema = metadata[table_name]
+    try:
+        record_data = validate_and_cast_values(schema, values)
+    except ValueError as e:
+        print(f"Ошибка валидации: {e}")
+        return None
+
+    table_data = load_table_data(table_name)
+    new_id = max((row.get("ID", 0) for row in table_data), default=0) + 1
+    record = {"ID": new_id, **record_data}
+    table_data.append(record)
+
+    print(f'Запись с ID={new_id} успешно добавлена в таблицу "{table_name}".')
+    return table_data
+
+"""
+Вывод записи таблицы
+"""
+def select(metadata: Dict[str, List[str]],table_name: str,where_clause: Optional[Dict[str, Any]] = None) -> None:
+    if table_name not in metadata:
+        print(f'Ошибка: Таблица "{table_name}" не существует.')
+        return
+
+    table_data = load_table_data(table_name)
+    schema = metadata[table_name]
+    columns = [spec.split(":", 1)[0] for spec in schema]
+
+    if where_clause:
+        filtered = []
+        for row in table_data:
+            match = True
+            for col, val in where_clause.items():
+                if row.get(col) != val:
+                    match = False
+                    break
+            if match:
+                filtered.append(row)
+        table_data = filtered
+
+    if not table_data:
+        print("Нет записей.")
+        return
+
+    pt = PrettyTable()
+    pt.field_names = columns
+    for row in table_data:
+        pt.add_row([row.get(col, "") for col in columns])
+    print(pt)
+
+"""
+Обновление записи по условию
+"""
+def update(metadata: Dict[str, List[str]],table_name: str,set_clause: Dict[str, str],where_clause: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+    if table_name not in metadata:
+        print(f'Ошибка: Таблица "{table_name}" не существует.')
+        return None
+
+    table_data = load_table_data(table_name)
+    schema_dict = {
+        spec.split(":", 1)[0]: spec.split(":", 1)[1]
+        for spec in metadata[table_name]
+    }
+
+    validated_set = {}
+    for col, val_str in set_clause.items():
+        if col not in schema_dict:
+            print(f'Ошибка: Столбец "{col}" не существует в таблице "{table_name}".')
+            return None
+        try:
+            validated_set[col] = cast_value(val_str, schema_dict[col])
+        except ValueError as e:
+            print(f"Ошибка валидации set: {e}")
+            return None
+
+    updated = False
+    for row in table_data:
+        match = True
+        for col, val in where_clause.items():
+            if row.get(col) != val:
+                match = False
+                break
+        if match:
+            for col, new_val in validated_set.items():
+                row[col] = new_val
+            updated = True
+            print(
+                f'Запись с ID={row["ID"]} в таблице "{table_name}" успешно обновлена.'
+            )
+
+    if not updated:
+        print("Ни одна запись не соответствует условию.")
+
+    return table_data if updated else None
+
+"""
+Удаление записи по условию
+"""
+def delete(metadata: Dict[str, List[str]],table_name: str,where_clause: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+    if table_name not in metadata:
+        print(f'Ошибка: Таблица "{table_name}" не существует.')
+        return None
+
+    table_data = load_table_data(table_name)
+    new_table_data = []
+    deleted = False
+
+    for row in table_data:
+        match = True
+        for col, val in where_clause.items():
+            if row.get(col) != val:
+                match = False
+                break
+        if match:
+            deleted = True
+            print(
+                f'Запись с ID={row["ID"]} успешно удалена из таблицы "{table_name}".'
+            )
+        else:
+            new_table_data.append(row)
+
+    if not deleted:
+        print("Ни одна запись не соответствует условию.")
+
+    return new_table_data if deleted else None
+
+"""
+Вывод информации о таблице
+"""
+def info(metadata: Dict[str, List[str]], table_name: str) -> None:
+    if table_name not in metadata:
+        print(f'Ошибка: Таблица "{table_name}" не существует.')
+        return
+
+    schema = metadata[table_name]
+    table_data = load_table_data(table_name)
+    print(f"Таблица: {table_name}")
+    print(f"Столбцы: {', '.join(schema)}")
+    print(f"Количество записей: {len(table_data)}")

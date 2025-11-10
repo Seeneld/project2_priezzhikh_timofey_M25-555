@@ -1,9 +1,6 @@
 install:
 	poetry install
 
-project:
-	poetry run project
-
 publish:
 	poetry publish --dry-run
 
@@ -15,4 +12,6 @@ build:
 
 lint:
 	 poetry run ruff check .
- 
+
+database:
+	poetry run database 

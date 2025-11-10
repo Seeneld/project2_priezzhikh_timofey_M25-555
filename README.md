@@ -7,7 +7,7 @@
 Для установки, убедитесь, что у вас установлен Python и Poetry, а затем склонируйте репозиторий с помощью команды git clone https://github.com/Seeneld/project2_priezzhikh_timofey_M25-555.git
 
 Затем перейдите в папку проекта: cd project2_priezzhikh_timofey_M25-555
-Установите зависимости с помощью poetry и запустите проект введя последовательно команды: poetry install, poetry build, poetry run project или make install, make build, make project
+Установите зависимости с помощью poetry и запустите проект введя последовательно команды: poetry install, poetry build, poetry run database или make install, make build, database/make_database
 
 ## Управление таблицами
 Поддерживаемые команды:
@@ -16,6 +16,12 @@
 <command> create_table <имя_таблицы> <столбец1:тип> .. - создать таблицу
 <command> list_tables - показать список всех таблиц
 <command> drop_table <имя_таблицы> - удалить таблицу
+<command> insert into <имя_таблицы> values (<значение1>, <значение2>, ...) - создать запись.
+<command> select from <имя_таблицы> where <столбец> = <значение> - прочитать записи по условию.
+<command> select from <имя_таблицы> - прочитать все записи.
+<command> update <имя_таблицы> set <столбец1> = <новое_значение1> where <столбец_условия> = <значение_условия> - обновить запись.
+<command> delete from <имя_таблицы> where <столбец> = <значение> - удалить запись.
+<command> info <имя_таблицы> - вывести информацию о таблице.
 
 Общие команды:
 <command> exit - выход из программы
@@ -24,7 +30,7 @@
 Поддерживаемые типы данных:
 int, str, bool
 
-## Asciinema с установкой проекта, созданием, удалением и запросом списка таблиц
+## Asciinema №1 с установкой проекта, созданием, удалением и запросом списка таблиц
 {"version": 2, "width": 82, "height": 15, "timestamp": 1762764619, "env": {"SHELL": "/bin/bash", "TERM": "xterm-256color"}}
 [0.00925, "o", "\u001b[?2004h\u001b]0;seeneld@TimPC: ~/project2_priezzhikh_timofey_M25-555\u0007\u001b[01;32mseeneld@TimPC\u001b[00m:\u001b[01;34m~/project2_priezzhikh_timofey_M25-555\u001b[00m$ "]
 [2.880496, "o", "m"]
