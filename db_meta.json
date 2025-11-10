@@ -1,0 +1,8 @@
+{
+    "table1": [
+        "ID:int",
+        "test_name:str",
+        "test_number:int",
+        "test_bool:bool"
+    ]
+}
