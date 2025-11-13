@@ -1,53 +1,64 @@
-from typing import Dict, List, Tuple, Optional, Union, Any
-from src.primitive_db.utils import load_table_data
+from typing import Any, Dict, List, Optional, Tuple
+
 from prettytable import PrettyTable
 
-
-SUPPORTED_TYPES = {"int", "str", "bool"}
-DB_FILE = "db_meta.json"
+from src.primitive_db.constants import SUPPORTED_TYPES
+from src.primitive_db.decorators import confirm_action, handle_db_errors, log_time
+from src.primitive_db.utils import load_table_data
 
 """
 Валидация данных в колонке таблицы
 """
-def validate_column_spec(column: str) -> Tuple[str, str]:
+def validate_column_spec(
+        column: str
+        
+        ) -> Tuple[str, str]:
     if ':' not in column:
-        raise ValueError(f"Некорректное значение: {column}. Ожидается формат 'имя:тип'.")
+        raise ValueError(f"Некорректное значение: {column}. \
+                         Ожидается формат 'имя:тип'.")
     name, typ = column.split(':', 1)
     if not name:
-        raise ValueError(f"Некорректное значение: {column}. Имя столбца не может быть пустым.")
+        raise ValueError(f"Некорректное значение: {column}. \
+                         Имя столбца не может быть пустым.")
     if typ not in SUPPORTED_TYPES:
-        raise ValueError(f"Некорректное значение: {typ}. Поддерживаемые типы: {', '.join(SUPPORTED_TYPES)}")
+        raise ValueError(f"Некорректное значение: {typ}. \
+                         Поддерживаемые типы: {', '.join(SUPPORTED_TYPES)}")
     return name, typ
 
 """
 Создание таблицы в метаданных
 """
-def create_table(metadata: Dict[str, List[str]], table_name: str, column_specs: List[str]) -> Dict[str, List[str]]:
+@handle_db_errors
+def create_table(
+    metadata: Dict[str, List[str]], 
+    table_name: str, 
+    column_specs: List[str]
+) -> Dict[str, List[str]]:
     if table_name in metadata:
-        print(f'Ошибка: Таблица "{table_name}" уже существует.')
-        return metadata
+        raise ValueError(f'Таблица "{table_name}" уже существует.')
 
     columns = ["ID:int"]
     for spec in column_specs:
-        try:
-            name, typ = validate_column_spec(spec)
-            columns.append(f"{name}:{typ}")
-        except ValueError as e:
-            print(e)
-            return metadata
+        name, typ = validate_column_spec(spec)
+        columns.append(f"{name}:{typ}")
 
     new_metadata = metadata.copy()
     new_metadata[table_name] = columns
-    print(f'Таблица "{table_name}" успешно создана со столбцами: {", ".join(columns)}')
+    print(f'Таблица "{table_name}" успешно создана со столбцами:\
+           {", ".join(columns)}')
     return new_metadata
 
 """
 Удаление таблицы из метаданных
 """
-def drop_table(metadata: Dict[str, List[str]], table_name: str) -> Dict[str, List[str]]:
+@handle_db_errors
+@confirm_action("удаление таблицы")
+def drop_table(metadata:
+                Dict[str, List[str]], 
+                table_name: str
+                ) -> Dict[str, List[str]]:
     if table_name not in metadata:
-        print(f'Ошибка: Таблица "{table_name}" не существует.')
-        return metadata
+        raise KeyError(table_name)
 
     new_metadata = metadata.copy()
     del new_metadata[table_name]
@@ -57,7 +68,8 @@ def drop_table(metadata: Dict[str, List[str]], table_name: str) -> Dict[str, Lis
 """
 Вывод списка таблиц
 """
-def list_tables(metadata: Dict[str, List[str]]):
+@handle_db_errors
+def list_tables(metadata: Dict[str, List[str]]) -> None:
     if not metadata:
         print("Нет таблиц.")
     else:
@@ -77,7 +89,8 @@ def cast_value(value_str: str, target_type: str) -> Any:
         elif value_str.lower() in ("false", "0"):
             return False
         else:
-            raise ValueError(f"Некорректное булево значение: {value_str}")
+            raise ValueError(f"Некорректное булево значение\
+                             : {value_str}")
     elif target_type == "str":
             return value_str
     else:
@@ -86,12 +99,12 @@ def cast_value(value_str: str, target_type: str) -> Any:
 """
 Валидация и приведение значения к нужному типу
 """
-def validate_and_cast_values(schema: List[str], values: List[str]) -> Dict[str, Any]:
+def validate_and_cast_values(schema: List[str],
+                              values: List[str]) -> Dict[str, Any]:
     data_columns = schema[1:] 
     if len(values) != len(data_columns):
-        raise ValueError(
-            f"Ожидалось {len(data_columns)} значений, получено {len(values)}."
-        )
+        raise ValueError(f"Ожидалось {len(data_columns)}\
+                          значений, получено {len(values)}.")
 
     record = {}
     for spec, val_str in zip(data_columns, values):
@@ -102,30 +115,38 @@ def validate_and_cast_values(schema: List[str], values: List[str]) -> Dict[str, 
 """
 Добавление записи в таблицу
 """
-def insert(metadata: Dict[str, List[str]], table_name: str, values: List[str]) -> Optional[List[Dict[str, Any]]]:
+@handle_db_errors
+@log_time
+def insert(
+    metadata: Dict[str, List[str]], 
+    table_name: str, 
+    values: List[str]
+) -> Optional[List[Dict[str, Any]]]:
     if table_name not in metadata:
-        print(f'Ошибка: Таблица "{table_name}" не существует.')
-        return None
+        raise KeyError(table_name)
 
     schema = metadata[table_name]
-    try:
-        record_data = validate_and_cast_values(schema, values)
-    except ValueError as e:
-        print(f"Ошибка валидации: {e}")
-        return None
+    record_data = validate_and_cast_values(schema, values)
 
     table_data = load_table_data(table_name)
-    new_id = max((row.get("ID", 0) for row in table_data), default=0) + 1
+    new_id = max((row.get("ID", 0) for row in table_data),
+                  default=0) + 1
     record = {"ID": new_id, **record_data}
     table_data.append(record)
-
     print(f'Запись с ID={new_id} успешно добавлена в таблицу "{table_name}".')
     return table_data
+
 
 """
 Вывод записи таблицы
 """
-def select(metadata: Dict[str, List[str]],table_name: str,where_clause: Optional[Dict[str, Any]] = None) -> None:
+@handle_db_errors
+@log_time
+def select(
+    metadata: Dict[str, List[str]], 
+    table_name: str, 
+    where_clause: Optional[Dict[str, Any]] = None
+) -> None:
     if table_name not in metadata:
         print(f'Ошибка: Таблица "{table_name}" не существует.')
         return
@@ -139,7 +160,7 @@ def select(metadata: Dict[str, List[str]],table_name: str,where_clause: Optional
         for row in table_data:
             match = True
             for col, val in where_clause.items():
-                if row.get(col) != val:
+                if str(row.get(col, "")) != str(val):
                     match = False
                     break
             if match:
@@ -156,13 +177,19 @@ def select(metadata: Dict[str, List[str]],table_name: str,where_clause: Optional
         pt.add_row([row.get(col, "") for col in columns])
     print(pt)
 
+
 """
 Обновление записи по условию
 """
-def update(metadata: Dict[str, List[str]],table_name: str,set_clause: Dict[str, str],where_clause: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+@handle_db_errors
+def update(
+    metadata: Dict[str, List[str]], 
+    table_name: str, 
+    set_clause: Dict[str, str], 
+    where_clause: Dict[str, Any]
+) -> Optional[List[Dict[str, Any]]]:
     if table_name not in metadata:
-        print(f'Ошибка: Таблица "{table_name}" не существует.')
-        return None
+        raise KeyError(table_name)
 
     table_data = load_table_data(table_name)
     schema_dict = {
@@ -173,41 +200,41 @@ def update(metadata: Dict[str, List[str]],table_name: str,set_clause: Dict[str, 
     validated_set = {}
     for col, val_str in set_clause.items():
         if col not in schema_dict:
-            print(f'Ошибка: Столбец "{col}" не существует в таблице "{table_name}".')
-            return None
-        try:
-            validated_set[col] = cast_value(val_str, schema_dict[col])
-        except ValueError as e:
-            print(f"Ошибка валидации set: {e}")
-            return None
+            raise KeyError(col)
+        validated_set[col] = cast_value(val_str, schema_dict[col])
 
     updated = False
     for row in table_data:
         match = True
         for col, val in where_clause.items():
-            if row.get(col) != val:
+            if str(row.get(col, "")) != str(val):
                 match = False
                 break
         if match:
             for col, new_val in validated_set.items():
                 row[col] = new_val
             updated = True
-            print(
-                f'Запись с ID={row["ID"]} в таблице "{table_name}" успешно обновлена.'
-            )
+            print(f'Запись с ID={row["ID"]} в таблице\
+                   "{table_name}" успешно обновлена.')
 
     if not updated:
         print("Ни одна запись не соответствует условию.")
 
     return table_data if updated else None
 
+
 """
 Удаление записи по условию
 """
-def delete(metadata: Dict[str, List[str]],table_name: str,where_clause: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+@handle_db_errors
+@confirm_action("удаление записи")
+def delete(
+    metadata: Dict[str, List[str]], 
+    table_name: str, 
+    where_clause: Dict[str, Any]
+) -> Optional[List[Dict[str, Any]]]:
     if table_name not in metadata:
-        print(f'Ошибка: Таблица "{table_name}" не существует.')
-        return None
+        raise KeyError(table_name)
 
     table_data = load_table_data(table_name)
     new_table_data = []
@@ -216,14 +243,13 @@ def delete(metadata: Dict[str, List[str]],table_name: str,where_clause: Dict[str
     for row in table_data:
         match = True
         for col, val in where_clause.items():
-            if row.get(col) != val:
+            if str(row.get(col, "")) != str(val):
                 match = False
                 break
         if match:
             deleted = True
-            print(
-                f'Запись с ID={row["ID"]} успешно удалена из таблицы "{table_name}".'
-            )
+            print(f'Запись с ID={row["ID"]} \
+                  успешно удалена из таблицы "{table_name}".')
         else:
             new_table_data.append(row)
 
@@ -232,13 +258,14 @@ def delete(metadata: Dict[str, List[str]],table_name: str,where_clause: Dict[str
 
     return new_table_data if deleted else None
 
+
 """
 Вывод информации о таблице
 """
+@handle_db_errors
 def info(metadata: Dict[str, List[str]], table_name: str) -> None:
     if table_name not in metadata:
-        print(f'Ошибка: Таблица "{table_name}" не существует.')
-        return
+        raise KeyError(table_name)
 
     schema = metadata[table_name]
     table_data = load_table_data(table_name)

@@ -1,8 +1,8 @@
 import shlex
-from src.primitive_db import core, utils
 from typing import Dict
 
-DB_FILE = "db_meta.json"
+from src.primitive_db import core, utils
+from src.primitive_db.constants import DB_FILE
 
 """
 Приветственное сообщение (старая версия)
@@ -33,11 +33,15 @@ def print_help():
     print("<command> drop_table <имя_таблицы> - удалить таблицу")
     
     print("\nРабота с записями:")
-    print("<command> insert into <имя_таблицы> values (<значение1>, <значение2>, ...) - создать запись")
-    print("<command> select from <имя_таблицы> where <столбец> = <значение> - прочитать записи по условию")
+    print("<command> insert into <имя_таблицы> values \
+          (<значение1>, <значение2>, ...) - создать запись")
+    print("<command> select from <имя_таблицы> where \
+          <столбец> = <значение> - прочитать записи по условию")
     print("<command> select from <имя_таблицы> - прочитать все записи")
-    print("<command> update <имя_таблицы> set <столбец1> = <новое_значение1> where <столбец_условия> = <значение_условия> - обновить запись")
-    print("<command> delete from <имя_таблицы> where <столбец> = <значение> - удалить запись")
+    print("<command> update <имя_таблицы> set <столбец1> = <новое_значение1> \
+          where <столбец_условия> = <значение_условия> - обновить запись")
+    print("<command> delete from <имя_таблицы> where\
+           <столбец> = <значение> - удалить запись")
     print("<command> info <имя_таблицы> - вывести информацию о таблице")
 
     print("\nОбщие команды:")
@@ -51,7 +55,8 @@ def print_help():
 def parse_where_or_set(clause: str) -> Dict[str, str]:
     clause = clause.strip()
     if ' = ' not in clause:
-        raise ValueError(f"Некорректный формат условия: {clause}. Ожидается 'ключ = значение'.")
+        raise ValueError(f"Некорректный формат условия: {clause}. \
+                         Ожидается 'ключ = значение'.")
 
     key, value = clause.split(' = ', 1)
     key = key.strip()
@@ -105,16 +110,19 @@ def run():
 
         elif command == "create_table":
             if len(args) < 2:
-                print("Некорректное значение: недостаточно аргументов для команды create_table.")
+                print("Некорректное значение: недостаточно \
+                      аргументов для команды create_table.")
             else:
                 table_name = args[1]
                 column_specs = args[2:]
                 new_meta = core.create_table(metadata, table_name, column_specs)
-                utils.save_metadata(DB_FILE, new_meta)
+                if new_meta is not None:
+                    utils.save_metadata(DB_FILE, new_meta)
 
         elif command == "drop_table":
             if len(args) != 2:
-                print("Некорректное значение: команда drop_table требует ровно одно имя таблицы.")
+                print("Некорректное значение: команда \
+                      drop_table требует ровно одно имя таблицы.")
             else:
                 table_name = args[1]
                 new_meta = core.drop_table(metadata, table_name)
@@ -122,7 +130,8 @@ def run():
 
         elif command == "insert":
             if len(args) < 4 or args[1] != "into" or args[3] != "values":
-                print("Некорректный синтаксис: insert into <таблица> values (значения...)")
+                print("Некорректный синтаксис: insert \
+                      into <таблица> values (значения...)")
             else:
                 table_name = args[2]
                 values_str = " ".join(args[4:])
@@ -158,7 +167,8 @@ def run():
 
         elif command == "update":
             if len(args) < 4 or args[2] != "set":
-                print("Некорректный синтаксис: update <таблица> set col=val [where ...]")
+                print("Некорректный синтаксис: update <таблица> \
+                      set col=val [where ...]")
             else:
                 table_name = args[1]
                 set_part = []
